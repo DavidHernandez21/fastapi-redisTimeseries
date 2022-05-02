@@ -1,3 +1,4 @@
+import asyncio
 import functools
 import json
 import logging
@@ -51,16 +52,16 @@ class Keys:
     @prefixed_key
     def timeseries_sentiment_key(self) -> str:
         """A time series containing 30-second snapshots of BTC sentiment."""
-        return f'sentiment:mean:30s'
+        return 'sentiment:mean:30s'
 
     @prefixed_key
     def timeseries_price_key(self) -> str:
         """A time series containing 30-second snapshots of BTC price."""
-        return f'price:mean:30s'
+        return 'price:mean:30s'
 
     @prefixed_key
     def cache_key(self) -> str:
-        return f'cache'
+        return 'cache'
 
 
 class Config(BaseSettings):
@@ -121,12 +122,12 @@ async def get_hourly_average(ts_key: str, top_of_the_hour: int):
     return response
 
 
-def datetime_parser(dct):
+def datetime_parser(dct: dict) -> dict:
     for k, v in dct.items():
         if isinstance(v, str) and v.endswith('+00:00'):
             try:
                 dct[k] = datetime.datetime.fromisoformat(v)
-            except:
+            except Exception:
                 pass
     return dct
 
@@ -153,15 +154,15 @@ async def set_cache(data, keys: Keys):
 def get_direction(last_three_hours, key: str):
     if last_three_hours[0][key] < last_three_hours[-1][key]:
         return 'rising'
-    elif last_three_hours[0][key] > last_three_hours[-1][key]:
+    if last_three_hours[0][key] > last_three_hours[-1][key]:
         return 'falling'
-    else:
-        return 'flat'
+    
+    return 'flat'
 
 
 def now():
     """Wrap call to utcnow, so that we can mock this function in tests."""
-    return datetime.utcnow()
+    return datetime.now(timezone.utc)
 
 
 async def calculate_three_hours_of_data(keys: Keys) -> Dict[str, str]:
@@ -169,8 +170,13 @@ async def calculate_three_hours_of_data(keys: Keys) -> Dict[str, str]:
     price_key = keys.timeseries_price_key()
     three_hours_ago_ms = int((now() - timedelta(hours=3)).timestamp() * 1000)
 
-    sentiment = await get_hourly_average(sentiment_key, three_hours_ago_ms)
-    price = await get_hourly_average(price_key, three_hours_ago_ms)
+    sentiment, price = await asyncio.gather(
+        get_hourly_average(sentiment_key, three_hours_ago_ms),
+        get_hourly_average(price_key, three_hours_ago_ms),
+    )
+
+    # sentiment = await get_hourly_average(sentiment_key, three_hours_ago_ms)
+    # price = await get_hourly_average(price_key, three_hours_ago_ms)
 
     last_three_hours = [{
         'price': data[0][1], 'sentiment': data[1][1],
@@ -199,9 +205,11 @@ async def bitcoin(background_tasks: BackgroundTasks, keys: Keys = Depends(make_k
     data = await get_cache(keys)
 
     if not data:
+        log.info("cache miss")
         data = await calculate_three_hours_of_data(keys)
         background_tasks.add_task(set_cache, data, keys)
 
+    
     return data
 
 
@@ -227,11 +235,15 @@ async def make_timeseries(key):
 
 
 async def initialize_redis(keys: Keys):
-    await make_timeseries(keys.timeseries_sentiment_key())
-    await make_timeseries(keys.timeseries_price_key())
+    asyncio.gather(
+        make_timeseries(keys.timeseries_sentiment_key()),
+        make_timeseries(keys.timeseries_price_key()),
+    )
+    # await make_timeseries(keys.timeseries_sentiment_key())
+    # await make_timeseries(keys.timeseries_price_key())
 
 
 @app.on_event('startup')
 async def startup_event():
-    keys = Keys()
-    await initialize_redis(keys)
+    # keys = Keys()
+    await initialize_redis(Keys())

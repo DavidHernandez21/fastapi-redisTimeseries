@@ -1,0 +1,44 @@
+version: '3.9'
+services:
+    redis:
+        image: redislabs/redismod
+        container_name: "redis-timeseries"
+        ports:
+          - "16379:6379"
+        volumes:
+          - $PWD/data:/data
+        command: --dir /data --loadmodule /usr/lib/redis/modules/redistimeseries.so
+        networks:
+        - fastapi_redis
+
+    app:
+        restart: always
+        image: fastapi-redis-timeseries
+        build: 
+            context: .
+            dockerfile: Dockerfile
+        container_name: "fastapi-app"
+        ports:
+            - "8080:80"
+        volumes:
+            - $PWD/app:/app
+        depends_on:
+            - redis
+        networks:
+        - fastapi_redis
+        # command: /start-reload.sh
+
+    # test:
+    #     build: .
+    #     volumes:
+    #         - $PWD:/app
+    #     depends_on:
+    #         - redis
+    #     entrypoint: "pytest -s"
+    #     networks:
+    #     - fastapi_redis
+
+
+networks:
+    fastapi_redis:
+        driver: bridge

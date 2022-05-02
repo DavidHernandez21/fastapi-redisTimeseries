@@ -1,16 +1,42 @@
-FROM tiangolo/uvicorn-gunicorn-fastapi:python3.8
+FROM python:3.10.4-slim-bullseye as requirements-stage
 
-WORKDIR /app
+# 
+WORKDIR /tmp
 
-# Install Poetry
-RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | POETRY_HOME=/opt/poetry python && \
-    cd /usr/local/bin && \
-        ln -s /opt/poetry/bin/poetry && \
-            poetry config virtualenvs.create false
+ENV POETRY_VERSION=1.1.13
 
-# Copy poetry.lock* in case it doesn't exist in the repo
-COPY ./pyproject.toml ./poetry.lock* /app/
+# 
+RUN pip install "poetry==$POETRY_VERSION"
 
-RUN bash -c "poetry install --no-root"
+# 
+COPY ./pyproject.toml ./poetry.lock* /tmp/
 
-COPY ./app /app
+# 
+RUN poetry export -f requirements.txt --output requirements.txt --without-hashes
+
+# 
+FROM python:3.10.4-slim-bullseye
+
+# 
+WORKDIR /code
+
+# 
+COPY --from=requirements-stage /tmp/requirements.txt /code/requirements.txt
+
+# 
+RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+
+# 
+COPY ./app /code/app
+
+
+RUN addgroup --gid 1001 --system app && \
+    adduser --no-create-home --shell /bin/false --disabled-password --uid 1001 --system --group app
+
+USER app
+
+
+ENV PORT=80 \
+    HOST=0.0.0.0
+# 
+CMD uvicorn app.main:app --host $HOST --port $PORT
