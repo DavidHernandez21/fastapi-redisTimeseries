@@ -37,6 +37,7 @@ USER app
 
 
 ENV PORT=80 \
-    HOST=0.0.0.0
+    HOST=0.0.0.0 \
+    PYTHONDONTWRITEBYTECODE=1
 # 
 CMD exec uvicorn app.main:app --host $HOST --port $PORT
