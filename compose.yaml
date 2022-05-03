@@ -17,11 +17,13 @@ services:
         build: 
             context: .
             dockerfile: Dockerfile
+            args:
+                - port=${PORT:?err}
         container_name: "fastapi-app"
         ports:
-            - "8080:80"
+            - "8080:${PORT:?err}"
         volumes:
-            - $PWD/app:/app
+            - $PWD/app:/code/app
         depends_on:
             - redis
         networks:
