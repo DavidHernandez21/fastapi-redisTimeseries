@@ -39,4 +39,4 @@ USER app
 ENV PORT=80 \
     HOST=0.0.0.0
 # 
-CMD uvicorn app.main:app --host $HOST --port $PORT
+CMD exec uvicorn app.main:app --host $HOST --port $PORT
