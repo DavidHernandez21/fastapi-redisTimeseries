@@ -133,3 +133,5 @@ dmypy.json
 data/appendonly.aof
 
 .pre-commit-config.yaml
+
+.vscode/
